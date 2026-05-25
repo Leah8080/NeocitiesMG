@@ -66,13 +66,38 @@ def generate_link_md(local_path, local_files):
     except Exception as e:
         rprint(f"[bold red]错误: 写入 link.md 失败:[/bold red] {e}")
 
+from rich.tree import Tree
+from rich.prompt import Confirm
+
+def show_sync_preview(local_path, local_files):
+    """
+    显示待同步文件的树形预览
+    """
+    tree = Tree(f"[bold magenta]待同步目录结构: {local_path.name}[/bold magenta]")
+    
+    # 建立目录索引
+    paths = sorted(local_files.keys())
+    nodes = {"": tree}
+    
+    for path_str in paths:
+        parts = path_str.split('/')
+        for i in range(len(parts)):
+            parent_path = "/".join(parts[:i])
+            current_path = "/".join(parts[:i+1])
+            if current_path not in nodes:
+                is_file = (i == len(parts) - 1)
+                style = "green" if is_file else "blue"
+                nodes[current_path] = nodes[parent_path].add(f"[{style}]{parts[i]}[/{style}]")
+    
+    console.print(tree)
+
 def sync_files(api, local_dir):
     local_path = Path(local_dir)
     if not local_path.is_dir():
         rprint(f"[bold red]错误:[/bold red] 本地目录 {local_dir} 不存在或不是目录")
         return
 
-    rprint(f"[bold blue]开始同步本地目录: {local_path.absolute()}[/bold blue]")
+    rprint(f"[bold blue]正在分析本地目录: {local_path.absolute()}[/bold blue]")
 
     spec = load_ignore_spec(local_path)
     if spec:
@@ -90,11 +115,15 @@ def sync_files(api, local_dir):
             continue
             
         if p.is_file():
-            # 排除 CNAME, link.md 和 .gitignore 本身不参与生成链接吗？
-            # 通常 CNAME 参与上传，但这里我们记录所有参与同步的文件
             local_files[rel_path] = p
         elif p.is_dir():
             local_dirs.add(rel_path)
+
+    # 显示预览并确认
+    show_sync_preview(local_path, local_files)
+    if not Confirm.ask("\n[bold yellow]确认根据以上结构同步到 Neocities 云端吗？[/bold yellow]", default=True):
+        rprint("[yellow]同步操作已取消[/yellow]")
+        return
 
     # 2. 获取远程文件列表
     with console.status("[bold green]正在获取远程文件列表..."):
