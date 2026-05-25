@@ -9,8 +9,8 @@ def show_menu():
     console.print(Panel.fit(
         "[bold cyan]Neocities API 交互工具[/bold cyan]\n"
         "[1] 查看站点信息\n"
-        "[2] 列出文件列表\n"
-        "[3] 同步文件 (上传本地 & 删除云端多余)\n"
+        "[2] 查看站点文件\n"
+        "[3] 同步本地文件\n"
         "[0] 退出程序",
         title="菜单", border_style="green"
     ))
