@@ -14,6 +14,58 @@ def load_ignore_spec(local_path):
             rprint(f"[yellow]警告: 无法读取 .gitignore: {e}[/yellow]")
     return None
 
+def generate_link_md(local_path, local_files):
+    """
+    根据 CNAME 和本地文件列表生成 link.md
+    """
+    cname_file = local_path / "CNAME"
+    if not cname_file.exists():
+        rprint("[yellow]警告: 未找到 CNAME 文件，跳过生成 link.md[/yellow]")
+        return
+
+    try:
+        base_url = cname_file.read_text(encoding='utf-8').strip()
+        if not base_url.startswith("http"):
+            base_url = f"https://{base_url}"
+        if not base_url.endswith("/"):
+            base_url += "/"
+    except Exception as e:
+        rprint(f"[yellow]警告: 读取 CNAME 失败: {e}[/yellow]")
+        return
+
+    # 排序逻辑：根目录文件优先，然后按目录深度和字母排序
+    def sort_key(rel_path):
+        parts = rel_path.split('/')
+        # 深度越浅越靠前，同深度按字母排序
+        return (len(parts) - 1, rel_path)
+
+    sorted_paths = sorted(local_files.keys(), key=sort_key)
+
+    content = [f"# Site Links ({base_url})\n"]
+    
+    current_depth = -1
+    for rel_path in sorted_paths:
+        parts = rel_path.split('/')
+        depth = len(parts) - 1
+        
+        if depth != current_depth:
+            if depth == 0:
+                content.append("## Root Files")
+            else:
+                # 显示所属目录名
+                content.append(f"## {os.path.dirname(rel_path)}")
+            current_depth = depth
+        
+        full_url = f"{base_url}{rel_path}"
+        content.append(f"```text\n{full_url}\n```")
+
+    try:
+        link_md_path = local_path / "link.md"
+        link_md_path.write_text("\n".join(content), encoding='utf-8')
+        rprint(f"[bold green]成功生成链接文档: {link_md_path}[/bold green]")
+    except Exception as e:
+        rprint(f"[bold red]错误: 写入 link.md 失败:[/bold red] {e}")
+
 def sync_files(api, local_dir):
     local_path = Path(local_dir)
     if not local_path.is_dir():
@@ -38,6 +90,8 @@ def sync_files(api, local_dir):
             continue
             
         if p.is_file():
+            # 排除 CNAME, link.md 和 .gitignore 本身不参与生成链接吗？
+            # 通常 CNAME 参与上传，但这里我们记录所有参与同步的文件
             local_files[rel_path] = p
         elif p.is_dir():
             local_dirs.add(rel_path)
@@ -59,41 +113,30 @@ def sync_files(api, local_dir):
         if rel_path not in remote_files_map:
             to_upload[rel_path] = str(p)
         else:
-            # 简单的 size 对比
             if p.stat().st_size != remote_files_map[rel_path].get('size'):
                 to_upload[rel_path] = str(p)
 
-    # 需要删除的：远程有但本地没有的文件，且不被忽略
     to_delete = []
     for f_path in remote_files_map:
         if f_path not in local_files:
-            # 如果远程文件在忽略列表中，我们不删除它
             if not (spec and spec.match_file(f_path)):
                 to_delete.append(f_path)
     
-    # 需要删除的目录
     to_delete_dirs = []
     for d_path in remote_dirs:
         if d_path not in local_dirs:
             if not (spec and spec.match_file(d_path)):
                 to_delete_dirs.append(d_path)
     
-    # 合并删除列表
     all_to_delete = to_delete + to_delete_dirs
 
     rprint(f"[cyan]待上传文件: {len(to_upload)}[/cyan]")
     rprint(f"[cyan]待删除文件/目录: {len(all_to_delete)}[/cyan]")
 
-    if not to_upload and not all_to_delete:
-        rprint("[bold green]已经是最新的了，无需同步。[/bold green]")
-        return
-
     # 4. 执行上传
     if to_upload:
         with Progress() as progress:
             task = progress.add_task("[green]上传中...", total=len(to_upload))
-            # 考虑到大型同步，这里可以分批上传，但文档未说明限制
-            # 我们直接分批，每批 20 个文件，防止请求过大
             items = list(to_upload.items())
             batch_size = 20
             for i in range(0, len(items), batch_size):
@@ -102,8 +145,7 @@ def sync_files(api, local_dir):
                 if res.get('result') == 'success':
                     progress.update(task, advance=len(batch))
                 else:
-                    rprint(f"[bold red]分批上传失败 ({i}-{i+len(batch)}):[/bold red] {res.get('message')}")
-            rprint("[bold green]上传流程结束[/bold green]")
+                    rprint(f"[bold red]分批上传失败:[/bold red] {res.get('message')}")
 
     # 5. 执行删除
     if all_to_delete:
@@ -115,3 +157,6 @@ def sync_files(api, local_dir):
                 rprint(f"[bold red]删除失败:[/bold red] {res.get('message')}")
 
     rprint("[bold green]同步完成！[/bold green]")
+    
+    # 6. 生成链接文档
+    generate_link_md(local_path, local_files)
