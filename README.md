@@ -7,9 +7,10 @@ NeocitiesMG
 1. 克隆到本地后创建.env文件，内容示例：
 
    ```text
+   NEOCITIES_BASE_URL=https://neocities.org/api
    NEOCITIES_USER=user@xxx.com
    NEOCITIES_PASS=123456
-   NEOCITIES_BASE_URL=https://neocities.org/api
+   NEOCITIES_REPO=D:\\HTML\\neocities
    ```
 
 2. 推荐uv来管理
