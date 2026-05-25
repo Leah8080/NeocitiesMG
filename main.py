@@ -34,7 +34,8 @@ def main():
             display_files(files)
 
         elif choice == "3":
-            local_dir = Prompt.ask("请输入本地同步目录路径", default=".")
+            # local_dir = Prompt.ask("请输入本地同步目录路径", default=".")
+            local_dir = os.getenv("NEOCITIES_REPO")
             sync_files(api, local_dir)
 
         elif choice == "0":
