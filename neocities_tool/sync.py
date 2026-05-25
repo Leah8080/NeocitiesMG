@@ -2,6 +2,17 @@ import os
 from pathlib import Path
 from .ui import console, rprint
 from rich.progress import Progress
+import pathspec
+
+def load_ignore_spec(local_path):
+    ignore_file = local_path / ".gitignore"
+    if ignore_file.exists():
+        try:
+            with open(ignore_file, 'r', encoding='utf-8') as f:
+                return pathspec.PathSpec.from_lines('gitwildmatch', f)
+        except Exception as e:
+            rprint(f"[yellow]警告: 无法读取 .gitignore: {e}[/yellow]")
+    return None
 
 def sync_files(api, local_dir):
     local_path = Path(local_dir)
@@ -11,13 +22,25 @@ def sync_files(api, local_dir):
 
     rprint(f"[bold blue]开始同步本地目录: {local_path.absolute()}[/bold blue]")
 
-    # 1. 获取本地文件列表 (相对路径)
+    spec = load_ignore_spec(local_path)
+    if spec:
+        rprint("[dim]已加载 .gitignore 过滤规则[/dim]")
+
+    # 1. 获取本地文件和目录列表 (相对路径)
     local_files = {}
+    local_dirs = set()
+    
     for p in local_path.rglob('*'):
+        rel_path = p.relative_to(local_path).as_posix()
+        
+        # 检查是否被忽略
+        if spec and spec.match_file(rel_path):
+            continue
+            
         if p.is_file():
-            # Neocities 使用正斜杠
-            rel_path = p.relative_to(local_path).as_posix()
             local_files[rel_path] = p
+        elif p.is_dir():
+            local_dirs.add(rel_path)
 
     # 2. 获取远程文件列表
     with console.status("[bold green]正在获取远程文件列表..."):
@@ -27,15 +50,10 @@ def sync_files(api, local_dir):
         rprint(f"[bold red]错误: 无法获取远程文件列表:[/bold red] {remote_data.get('message')}")
         return
 
-    remote_files = {f['path'] for f in remote_data['files'] if not f['is_directory']}
+    remote_files_map = {f['path']: f for f in remote_data['files'] if not f['is_directory']}
     remote_dirs = {f['path'] for f in remote_data['files'] if f['is_directory']}
 
     # 3. 计算差异
-    # 需要上传的：本地有但远程没有，或者本地有的文件 (为了简单起见，这里可以加上文件大小校验，但 Neocities API 没提供 hash)
-    # 暂时默认所有本地文件都尝试上传，或者你可以对比 size
-    
-    remote_files_map = {f['path']: f for f in remote_data['files'] if not f['is_directory']}
-    
     to_upload = {}
     for rel_path, p in local_files.items():
         if rel_path not in remote_files_map:
@@ -45,16 +63,20 @@ def sync_files(api, local_dir):
             if p.stat().st_size != remote_files_map[rel_path].get('size'):
                 to_upload[rel_path] = str(p)
 
-    # 需要删除的：远程有但本地没有的文件
-    to_delete = [f for f in remote_files if f not in local_files]
+    # 需要删除的：远程有但本地没有的文件，且不被忽略
+    to_delete = []
+    for f_path in remote_files_map:
+        if f_path not in local_files:
+            # 如果远程文件在忽略列表中，我们不删除它
+            if not (spec and spec.match_file(f_path)):
+                to_delete.append(f_path)
     
-    # 注意：Neocities 的删除 API 似乎只能删文件。
-    # 如果要删目录，通常删除目录下所有文件即可。
-    # 也可以尝试把目录路径加进去。
-    
-    # 检查是否有需要删除的目录（本地不存在的目录）
-    local_dirs = {p.relative_to(local_path).as_posix() for p in local_path.rglob('*') if p.is_dir()}
-    to_delete_dirs = [d for d in remote_dirs if d not in local_dirs]
+    # 需要删除的目录
+    to_delete_dirs = []
+    for d_path in remote_dirs:
+        if d_path not in local_dirs:
+            if not (spec and spec.match_file(d_path)):
+                to_delete_dirs.append(d_path)
     
     # 合并删除列表
     all_to_delete = to_delete + to_delete_dirs
@@ -68,18 +90,20 @@ def sync_files(api, local_dir):
 
     # 4. 执行上传
     if to_upload:
-        # Neocities 限制单次上传文件数量或大小吗？文档没说，但最好分批或显示进度
         with Progress() as progress:
             task = progress.add_task("[green]上传中...", total=len(to_upload))
-            # 我们可以一次性上传，或者分批。requests 里的 files 字典可以包含多个文件。
-            # Neocities 建议一次不要传太多。
-            # 这里简单处理，一次性传。
-            res = api.upload_files(to_upload)
-            if res.get('result') == 'success':
-                progress.update(task, advance=len(to_upload))
-                rprint("[bold green]上传成功[/bold green]")
-            else:
-                rprint(f"[bold red]上传失败:[/bold red] {res.get('message')}")
+            # 考虑到大型同步，这里可以分批上传，但文档未说明限制
+            # 我们直接分批，每批 20 个文件，防止请求过大
+            items = list(to_upload.items())
+            batch_size = 20
+            for i in range(0, len(items), batch_size):
+                batch = dict(items[i:i+batch_size])
+                res = api.upload_files(batch)
+                if res.get('result') == 'success':
+                    progress.update(task, advance=len(batch))
+                else:
+                    rprint(f"[bold red]分批上传失败 ({i}-{i+len(batch)}):[/bold red] {res.get('message')}")
+            rprint("[bold green]上传流程结束[/bold green]")
 
     # 5. 执行删除
     if all_to_delete:
