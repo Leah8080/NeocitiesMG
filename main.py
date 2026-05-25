@@ -1,9 +1,9 @@
 import os
 from dotenv import load_dotenv
 from rich.prompt import Prompt
-from neocities_tool.api import NeocitiesAPI
-from neocities_tool.ui import console, show_menu, display_info, display_files, rprint
-from neocities_tool.sync import sync_files
+from src.api import NeocitiesAPI
+from src.ui import console, show_menu, display_info, display_files, rprint
+from src.sync import sync_files
 
 # 加载 .env 文件中的环境变量
 load_dotenv()
