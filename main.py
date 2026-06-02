@@ -10,10 +10,10 @@ load_dotenv()
 
 def main():
     user = os.getenv("NEOCITIES_USER")
-    password = os.getenv("NEOCITIES_PASS")
+    password = os.getenv("NEOCITIES_PSWD")
 
     if not user or not password:
-        rprint("[bold red]错误:[/bold red] 未在 .env 文件中找到 NEOCITIES_USER 或 NEOCITIES_PASS")
+        rprint("[bold red]错误:[/bold red] 未在 .env 文件中找到 NEOCITIES_USER 或 NEOCITIES_PSWD")
         return
 
     api = NeocitiesAPI(user, password)
