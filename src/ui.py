@@ -1,32 +1,29 @@
-from rich.console import Console, Group
+from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
-from rich.align import Align
 from rich.text import Text
 from rich import print as rprint
 
 console = Console()
 
 def show_menu(local_repo=None):
-    title = Text("NEOCITIES MANAGER", style="bold cyan", justify="center")
     if local_repo:
-        repo_line = Text(f"本地项目: {local_repo}", style="dim", justify="center")
+        repo_text = f"本地项目: {local_repo}"
+        repo_style = "dim"
     else:
-        repo_line = Text("本地项目: 未配置 (NEOCITIES_REPO)", style="dim red", justify="center")
+        repo_text = "本地项目: 未配置 (NEOCITIES_REPO)"
+        repo_style = "dim red"
 
-    options = Text()
-    options.append("  [1] ", style="bold green"); options.append("站点信息  ")
-    options.append("[2] ", style="bold green"); options.append("站点文件  ")
-    options.append("[3] ", style="bold green"); options.append("同步本地  ")
-    options.append("[0] ", style="bold green"); options.append("退出程序")
+    text = Text(justify="center")
+    text.append("NEOCITIES MANAGER\n", style="bold cyan")
+    text.append(repo_text + "\n", style=repo_style)
+    text.append("\n")
+    text.append("[1] ", style="bold green"); text.append("站点信息  ")
+    text.append("[2] ", style="bold green"); text.append("站点文件  ")
+    text.append("[3] ", style="bold green"); text.append("同步本地  ")
+    text.append("[0] ", style="bold green"); text.append("退出程序")
 
-    group = Group(
-        Align.center(title),
-        Align.center(repo_line),
-        Text(""),
-        Align.center(options),
-    )
-    console.print(Panel(group, border_style="green", padding=(1, 4)))
+    console.print(Panel(text, border_style="green", padding=(1, 4), expand=False))
 
 def display_info(info):
     if info.get('result') == 'success':
