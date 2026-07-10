@@ -6,19 +6,21 @@ class NeocitiesAPI:
 
     def __init__(self, user, password):
         self.auth = (user, password)
+        proxy = os.getenv("NEOCITIES_PROXY") or os.getenv("HTTPS_PROXY") or os.getenv("https_proxy")
+        self.proxies = {"http": proxy, "https": proxy} if proxy else None
 
     def get_info(self, sitename=None):
         params = {}
         if sitename:
             params['sitename'] = sitename
-        response = requests.get(f"{self.BASE_URL}/info", auth=self.auth, params=params)
+        response = requests.get(f"{self.BASE_URL}/info", auth=self.auth, params=params, proxies=self.proxies)
         return response.json()
 
     def list_files(self, path=None):
         params = {}
         if path:
             params['path'] = path
-        response = requests.get(f"{self.BASE_URL}/list", auth=self.auth, params=params)
+        response = requests.get(f"{self.BASE_URL}/list", auth=self.auth, params=params, proxies=self.proxies)
         return response.json()
 
     def upload_files(self, files_dict):
@@ -35,7 +37,7 @@ class NeocitiesAPI:
                     upload_data[remote_path] = f
             if not upload_data:
                 return {"result": "error", "message": "No files to upload"}
-            response = requests.post(f"{self.BASE_URL}/upload", auth=self.auth, files=upload_data)
+            response = requests.post(f"{self.BASE_URL}/upload", auth=self.auth, files=upload_data, proxies=self.proxies)
             return response.json()
         finally:
             for f in opened_files:
@@ -43,5 +45,5 @@ class NeocitiesAPI:
 
     def delete_files(self, filenames):
         data = {'filenames[]': filenames}
-        response = requests.post(f"{self.BASE_URL}/delete", auth=self.auth, data=data)
+        response = requests.post(f"{self.BASE_URL}/delete", auth=self.auth, data=data, proxies=self.proxies)
         return response.json()
