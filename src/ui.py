@@ -43,15 +43,20 @@ def display_info(info):
 def display_files(files_data):
     if files_data.get('result') == 'success':
         table = Table(title="文件列表", show_header=True, header_style="bold blue")
-        table.add_column("路径", style="cyan")
+        table.add_column("路径")
         table.add_column("类型", justify="center")
         table.add_column("大小 (Bytes)", justify="right")
         table.add_column("最后更新")
-        
+
         for f in files_data['files']:
-            f_type = "目录" if f['is_directory'] else "文件"
+            if f['is_directory']:
+                f_type = "目录"
+                path_style = "yellow"
+            else:
+                f_type = "文件"
+                path_style = "cyan"
             f_size = str(f.get('size', '-'))
-            table.add_row(f['path'], f_type, f_size, f['updated_at'])
+            table.add_row(Text(f['path'], style=path_style), f_type, f_size, f['updated_at'])
         console.print(table)
     else:
         rprint(f"[bold red]错误:[/bold red] {files_data.get('message')}")
