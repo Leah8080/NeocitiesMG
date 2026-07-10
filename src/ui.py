@@ -1,19 +1,32 @@
-from rich.console import Console
+from rich.console import Console, Group
 from rich.table import Table
 from rich.panel import Panel
+from rich.align import Align
+from rich.text import Text
 from rich import print as rprint
 
 console = Console()
 
-def show_menu():
-    console.print(Panel.fit(
-        "[bold cyan]Neocities API 交互工具[/bold cyan]\n"
-        "[1] 站点信息\n"
-        "[2] 站点文件\n"
-        "[3] 同步本地\n"
-        "[0] 退出程序",
-        title="菜单", border_style="green"
-    ))
+def show_menu(local_repo=None):
+    title = Text("NEOCITIES MANAGER", style="bold cyan", justify="center")
+    if local_repo:
+        repo_line = Text(f"本地项目: {local_repo}", style="dim", justify="center")
+    else:
+        repo_line = Text("本地项目: 未配置 (NEOCITIES_REPO)", style="dim red", justify="center")
+
+    options = Text()
+    options.append("  [1] ", style="bold green"); options.append("站点信息  ")
+    options.append("[2] ", style="bold green"); options.append("站点文件  ")
+    options.append("[3] ", style="bold green"); options.append("同步本地  ")
+    options.append("[0] ", style="bold green"); options.append("退出程序")
+
+    group = Group(
+        Align.center(title),
+        Align.center(repo_line),
+        Text(""),
+        Align.center(options),
+    )
+    console.print(Panel(group, border_style="green", padding=(1, 4)))
 
 def display_info(info):
     if info.get('result') == 'success':

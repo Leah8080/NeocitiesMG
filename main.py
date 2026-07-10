@@ -17,9 +17,10 @@ def main():
         return
 
     api = NeocitiesAPI(user, password)
-    
+    local_repo = os.getenv("NEOCITIES_REPO")
+
     while True:
-        show_menu()
+        show_menu(local_repo)
         choice = Prompt.ask("请选择操作", choices=["1", "2", "3", "0"], default="0")
 
         if choice == "1":
